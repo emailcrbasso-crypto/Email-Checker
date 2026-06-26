@@ -1,6 +1,15 @@
 import { useState, useMemo } from 'react'
 import { Search, ChevronUp, ChevronDown } from 'lucide-react'
-import type { EmailRecord, EmailStatus } from '../types'
+import type { EmailRecord, EmailStatus, SmtpStatus } from '../types'
+
+const SMTP_CONFIG: Record<NonNullable<SmtpStatus>, { label: string; classe: string }> = {
+  valido:    { label: 'Confirmado',  classe: 'bg-emerald-500/20 text-emerald-300' },
+  invalido:  { label: 'Inexistente', classe: 'bg-red-500/20 text-red-300' },
+  catch_all: { label: 'Catch-all',   classe: 'bg-sky-500/20 text-sky-300' },
+  timeout:   { label: 'Timeout',     classe: 'bg-slate-700 text-slate-400' },
+  bloqueado: { label: 'Bloqueado',   classe: 'bg-slate-700 text-slate-400' },
+  erro:      { label: 'Erro',        classe: 'bg-slate-700 text-slate-400' },
+}
 
 interface Props {
   registros: EmailRecord[]
@@ -126,6 +135,7 @@ export function EmailTable({ registros }: Props) {
                   </span>
                 </th>
               ))}
+              <th className="text-left px-4 py-3 text-slate-500 text-xs font-medium">SMTP</th>
               <th className="text-left px-4 py-3 text-slate-500 text-xs font-medium">Motivos</th>
             </tr>
           </thead>
@@ -149,6 +159,13 @@ export function EmailTable({ registros }: Props) {
                     </div>
                     <span className="text-slate-500 text-xs">{r.score}</span>
                   </div>
+                </td>
+                <td className="px-4 py-3">
+                  {r.smtpStatus ? (
+                    <span className={`inline-block px-2 py-0.5 rounded text-xs font-medium ${SMTP_CONFIG[r.smtpStatus].classe}`}>
+                      {SMTP_CONFIG[r.smtpStatus].label}
+                    </span>
+                  ) : <span className="text-slate-600 text-xs">—</span>}
                 </td>
                 <td className="px-4 py-3 text-xs text-slate-500">{r.motivos.join(', ') || '—'}</td>
               </tr>

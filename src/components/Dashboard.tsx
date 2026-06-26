@@ -131,6 +131,48 @@ export function Dashboard({ registros, parsed }: Props) {
         </div>
       </div>
 
+      {/* Resultado SMTP */}
+      {(() => {
+        const comSmtp = registros.filter(r => r.smtpStatus !== null)
+        if (comSmtp.length === 0) return null
+        const confirmados  = comSmtp.filter(r => r.smtpStatus === 'valido').length
+        const inexistentes = comSmtp.filter(r => r.smtpStatus === 'invalido').length
+        const catchAll     = comSmtp.filter(r => r.smtpStatus === 'catch_all').length
+        const inconclusivos = comSmtp.filter(r => r.smtpStatus === 'timeout' || r.smtpStatus === 'bloqueado' || r.smtpStatus === 'erro').length
+        return (
+          <div className="bg-slate-900 border border-slate-800 rounded-xl p-6">
+            <p className="text-slate-300 text-sm font-medium mb-4">Verificação SMTP — caixas de entrada</p>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-lg p-3">
+                <p className="text-2xl font-bold text-emerald-400">{confirmados.toLocaleString('pt-BR')}</p>
+                <p className="text-xs text-slate-400 mt-0.5">Confirmados</p>
+                <p className="text-xs text-slate-600">caixa existe e responde</p>
+              </div>
+              <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3">
+                <p className="text-2xl font-bold text-red-400">{inexistentes.toLocaleString('pt-BR')}</p>
+                <p className="text-xs text-slate-400 mt-0.5">Inexistentes</p>
+                <p className="text-xs text-slate-600">servidor rejeitou o endereço</p>
+              </div>
+              <div className="bg-sky-500/10 border border-sky-500/30 rounded-lg p-3">
+                <p className="text-2xl font-bold text-sky-400">{catchAll.toLocaleString('pt-BR')}</p>
+                <p className="text-xs text-slate-400 mt-0.5">Catch-all</p>
+                <p className="text-xs text-slate-600">domínio aceita tudo</p>
+              </div>
+              <div className="bg-slate-800 border border-slate-700 rounded-lg p-3">
+                <p className="text-2xl font-bold text-slate-400">{inconclusivos.toLocaleString('pt-BR')}</p>
+                <p className="text-xs text-slate-400 mt-0.5">Inconclusivos</p>
+                <p className="text-xs text-slate-600">timeout ou bloqueado</p>
+              </div>
+            </div>
+            {inexistentes > 0 && (
+              <p className="text-xs text-slate-500 mt-3">
+                💡 Os <span className="text-red-400 font-medium">{inexistentes.toLocaleString('pt-BR')} inexistentes</span> devem ser suprimidos no RD Station imediatamente — enviar para eles gera hard bounce e prejudica sua reputação de envio.
+              </p>
+            )}
+          </div>
+        )
+      })()}
+
       {/* Alerta de ação */}
       {taxaRisco > 30 && (
         <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 flex gap-3">

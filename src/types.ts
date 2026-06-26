@@ -2,6 +2,8 @@
 
 export type EmailStatus = 'válido' | 'inválido' | 'suspeito' | 'spam_trap' | 'duplicata' | 'pendente'
 
+export type SmtpStatus = 'valido' | 'invalido' | 'catch_all' | 'timeout' | 'bloqueado' | 'erro' | null
+
 export interface EmailRecord {
   id: string
   email: string
@@ -13,7 +15,8 @@ export interface EmailRecord {
   score: number // 0–100, quanto maior mais arriscado
   motivos: string[] // lista de problemas encontrados
   dominioTipo: 'corporativo' | 'gratuito' | 'temporario' | 'desconhecido'
-  mxValido: boolean | null // null = ainda verificando
+  mxValido: boolean | null   // null = ainda verificando
+  smtpStatus: SmtpStatus     // null = não verificado
 }
 
 export interface ParsedCSV {

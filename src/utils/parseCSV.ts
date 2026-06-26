@@ -77,6 +77,7 @@ export async function parseCSVRDStation(arquivo: File): Promise<ParsedCSV> {
             motivos: isDuplicata ? ['Email duplicado na lista'] : [],
             dominioTipo,
             mxValido: null,
+            smtpStatus: null,
           }
 
           registros.push(record)
