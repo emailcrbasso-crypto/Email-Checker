@@ -4,6 +4,11 @@ import type { EmailRecord, EmailStatus, MXCacheEntry } from '../types'
 // Cache de resultados MX por domínio (evita repetir consultas)
 const mxCache = new Map<string, MXCacheEntry>()
 
+// Pré-popula cache: provedores gratuitos têm MX válido por definição
+FREE_PROVIDERS.forEach(d => mxCache.set(d, { valido: true, checkedAt: Date.now() }))
+// Domínios descartáveis: não precisam de consulta DNS (já serão penalizados pelo dominioTipo)
+SPAM_DOMAINS.forEach(d => mxCache.set(d, { valido: false, checkedAt: Date.now() }))
+
 // Fila de domínios aguardando verificação MX
 let mxQueueRunning = false
 const mxQueue: Array<{ dominio: string; resolve: (val: boolean) => void }> = []
@@ -34,50 +39,59 @@ export function isSpamTrap(prefixo: string): boolean {
   return SYSTEM_PREFIXES.some(p => prefixo === p || prefixo.startsWith(p + '.') || prefixo.startsWith(p + '_') || prefixo.startsWith(p + '-'))
 }
 
+// Faz uma consulta DNS com retry em caso de rate limit (429)
+async function fetchDNS(url: string, tentativas = 3): Promise<boolean> {
+  for (let i = 0; i < tentativas; i++) {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(6000) })
+      if (res.status === 429) {
+        // Rate limited — espera exponencial antes de tentar de novo
+        await new Promise(r => setTimeout(r, 800 * (i + 1)))
+        continue
+      }
+      if (!res.ok) return false
+      const data = await res.json()
+      return Array.isArray(data.Answer) && data.Answer.length > 0
+    } catch {
+      if (i < tentativas - 1) await new Promise(r => setTimeout(r, 400))
+    }
+  }
+  // Falha total após retries: assume válido para não gerar falso negativo
+  return true
+}
+
 // Consulta MX via Google DNS over HTTPS (sem backend, funciona no browser)
 async function verificarMX(dominio: string): Promise<boolean> {
   const cached = mxCache.get(dominio)
   if (cached) return cached.valido
 
-  try {
-    const res = await fetch(`https://dns.google/resolve?name=${encodeURIComponent(dominio)}&type=MX`, {
-      signal: AbortSignal.timeout(5000)
-    })
-    if (!res.ok) return false
-    const data = await res.json()
-    const valido = Array.isArray(data.Answer) && data.Answer.length > 0
-    mxCache.set(dominio, { valido, checkedAt: Date.now() })
-    return valido
-  } catch {
-    // fallback: se DNS falhar, verifica A record
-    try {
-      const res = await fetch(`https://dns.google/resolve?name=${encodeURIComponent(dominio)}&type=A`, {
-        signal: AbortSignal.timeout(5000)
-      })
-      const data = await res.json()
-      const valido = Array.isArray(data.Answer) && data.Answer.length > 0
-      mxCache.set(dominio, { valido, checkedAt: Date.now() })
-      return valido
-    } catch {
-      mxCache.set(dominio, { valido: false, checkedAt: Date.now() })
-      return false
-    }
+  // Tenta MX primeiro, depois A record como fallback
+  let valido = await fetchDNS(
+    `https://dns.google/resolve?name=${encodeURIComponent(dominio)}&type=MX`
+  )
+  if (!valido) {
+    valido = await fetchDNS(
+      `https://dns.google/resolve?name=${encodeURIComponent(dominio)}&type=A`
+    )
   }
+
+  mxCache.set(dominio, { valido, checkedAt: Date.now() })
+  return valido
 }
 
-// Processa fila de MX com rate limit (10 req/s)
+// Processa fila de MX com rate limit (5 req/s — mais conservador para evitar 429)
 async function processarFilaMX() {
   if (mxQueueRunning) return
   mxQueueRunning = true
 
   while (mxQueue.length > 0) {
-    const lote = mxQueue.splice(0, 10) // 10 por vez
+    const lote = mxQueue.splice(0, 5)
     await Promise.all(lote.map(async ({ dominio, resolve }) => {
       const resultado = await verificarMX(dominio)
       resolve(resultado)
     }))
     if (mxQueue.length > 0) {
-      await new Promise(r => setTimeout(r, 1000)) // espera 1s entre lotes
+      await new Promise(r => setTimeout(r, 1000))
     }
   }
 
